@@ -17,29 +17,23 @@
 
 package com.mongodb;
 
-import freemarker.template.Configuration;
-import freemarker.template.Template;
-import freemarker.template.Version;
-import spark.Request;
-import spark.Response;
-import spark.Route;
-import spark.Spark;
-
 import java.io.StringWriter;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+import freemarker.template.Configuration;
+import freemarker.template.Template;
+import spark.Spark;
+
 public class SparkFormHandling {
     public static void main(String[] args) {
         // Configure Freemarker
-        final Configuration configuration = new Configuration(new Version("2.3.23"));
+        final Configuration configuration = new Configuration(Configuration.VERSION_2_3_23);
         configuration.setClassForTemplateLoading(SparkFormHandling.class, "/");
 
         // Configure routes
-        Spark.get("/", new Route() {
-            @Override
-            public Object handle(final Request request, final Response response) {
+        Spark.get("/", (request, response) -> {
                 try {
 
                     Map<String, Object> fruitsMap = new HashMap<String, Object>();
@@ -56,12 +50,9 @@ public class SparkFormHandling {
                 	Spark.halt(500);
                     return null;
                 }
-            }
         });
 
-        Spark.post("/favorite_fruit", new Route() {
-            @Override
-            public Object handle(final Request request, final Response response) {
+        Spark.post("/favorite_fruit", (request, response) -> {
                 final String fruit = request.queryParams("fruit");
                 if (fruit == null) {
                     return "Why don't you pick one?";
@@ -69,7 +60,6 @@ public class SparkFormHandling {
                 else {
                     return "Your favorite fruit is " + fruit;
                 }
-            }
         });
     }
 }

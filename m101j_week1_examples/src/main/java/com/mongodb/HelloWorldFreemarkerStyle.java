@@ -26,10 +26,9 @@ import java.util.Map;
 
 public class HelloWorldFreemarkerStyle {
     public static void main(String[] args) {
-        Configuration configuration = new Configuration();
+        Configuration configuration = new Configuration(Configuration.VERSION_2_3_23);
 
-        configuration.setClassForTemplateLoading(
-                HelloWorldFreemarkerStyle.class, "/");
+        configuration.setClassForTemplateLoading(HelloWorldFreemarkerStyle.class, "/");
 
         try {
             Template helloTemplate = configuration.getTemplate("hello.ftl");
