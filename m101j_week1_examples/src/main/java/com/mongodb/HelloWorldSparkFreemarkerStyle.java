@@ -19,6 +19,7 @@ package com.mongodb;
 
 import freemarker.template.Configuration;
 import freemarker.template.Template;
+import freemarker.template.Version;
 import spark.Request;
 import spark.Response;
 import spark.Route;
@@ -30,11 +31,10 @@ import java.util.Map;
 
 public class HelloWorldSparkFreemarkerStyle {
     public static void main(String[] args) {
-        final Configuration configuration = new Configuration();
-        configuration.setClassForTemplateLoading(
-                HelloWorldSparkFreemarkerStyle.class, "/");
+        final Configuration configuration = new Configuration(new Version("2.3.23"));
+        configuration.setClassForTemplateLoading(HelloWorldSparkFreemarkerStyle.class, "/");
 
-        Spark.get(new Route("/") {
+        Spark.get("/", new Route() {
             @Override
             public Object handle(final Request request,
                                  final Response response) {
@@ -46,7 +46,7 @@ public class HelloWorldSparkFreemarkerStyle {
 
                     helloTemplate.process(helloMap, writer);
                 } catch (Exception e) {
-                    halt(500);
+                	Spark.halt(500);
                     e.printStackTrace();
                 }
                 return writer;

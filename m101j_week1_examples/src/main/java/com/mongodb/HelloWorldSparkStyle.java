@@ -24,10 +24,9 @@ import spark.Spark;
 
 public class HelloWorldSparkStyle {
     public static void main(String[] args) {
-        Spark.get(new Route("/") {
+        Spark.get("/", new Route() {
             @Override
-            public Object handle(final Request request,
-                                 final Response response) {
+            public Object handle(final Request request, final Response response) {
                 return "Hello World From Spark\n";
             }
         });
