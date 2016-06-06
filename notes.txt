@@ -1,0 +1,78 @@
+########################################
+########## HELPFUL COMMANDS
+########################################
+
+show dbs                     	show database names
+show collections             	show collections in current database
+show users                   	show users in current database
+db.getName();					Get current database name
+use <db_name>					Set current database
+show collections				Show the collections contained in the current database
+
+########################################
+########## WEEK 2
+
+##### Creating documents
+
+mongorestore dump
+insertOne();
+insertMany();
+UPDATE COMMANDS is known as "upserts".
+
+##### The _id Field
+
+All collections have a unique primary index on the _id field by default.
+
+			Date    MAC		PID		Counter
+ObjectId: _ _ _ _ | _ _ _ | _ _ | _ _ _
+12-Byte Hex String
+
+Date - Current time stamp
+MAC - The MAC address for the machine on which the MongoDB server is running.
+PID - Process ID.
+Counter - A standard counter to make sure that the ObjectId is indeed unique.
+
+##### Reading documents
+
+db.movieDetails.find({ rated: "PG-13" }).pretty();
+db.movieDetails.find({ rated: "PG-13" }).count();
+db.movieDetails.find({ rated: "PG-13", year: 2009 }).count();
+db.movieDetails.find({ "tomato.meter": 100 }).count();
+db.movieDetails.find({ "tomato.meter": 99 }).pretty();
+
+// For this particular case the order of the elements matters
+// So the writers array must have only two elements following the order which each one was inserted
+db.movieDetails.find({ "writers": ["Ethan Coen", "Joel Coen"] }).count();
+
+// In this very case it will match all documents which have the actor "Jeff Bridges", thus this is not an exact match like the previous one
+db.movieDetails.find({ "actors": "Jeff Bridges" }).pretty();
+
+// All documents which have "Jeff Bridges" as the first element in actors array
+db.movieDetails.find({ "actors.0": "Jeff Bridges" }).pretty();
+
+// The find method returns a cursor. If you do the command below without assigning a variable to it, the cursor will automatically iterate up to 20 times.
+db.movieDetails.find({ rated: "PG" }).pretty();
+
+// Cursors
+
+var c = db.movieDetails.find();
+var doc = function() { return c.hasNext() ? c.next() : null; }
+c.objsLeftInBatch(); // 101 documents in the initial batch
+doc() // to iterate using the cursor
+c.objsLeftInBatch(); // if will do the command again it will return 100 documents
+
+// Projectinos
+
+// It will include only the attribute title and exclude _id
+db.movieDetails.find({ rated: "PG" }, { title: 1, _id: 0 } ).pretty();
+
+// It will include all fields except for the ones explicity excluded below
+db.movieDetails.find( { rated: "PG" }, { writers: 0, actors: 0, _id: 0 } ).pretty();
+
+
+##### Comparison operators
+
+// More details at https://docs.mongodb.com/manual/reference/operator/query-comparison/
+
+// All movies that have a runtime greater than 90
+db.moviesDetails.find({ runtime: { $gt: 90 } }).pretty();
