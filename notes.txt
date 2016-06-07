@@ -75,4 +75,21 @@ db.movieDetails.find( { rated: "PG" }, { writers: 0, actors: 0, _id: 0 } ).prett
 // More details at https://docs.mongodb.com/manual/reference/operator/query-comparison/
 
 // All movies that have a runtime greater than 90
-db.moviesDetails.find({ runtime: { $gt: 90 } }).pretty();
+db.movieDetails.find({ runtime: { $gt: 90 } }).pretty();
+db.movieDetails.find({ runtime: { $gt: 90 } }).count();
+db.movieDetails.find({ runtime: { $gt: 90 } }, { title: 1, runtime: 1, _id: 0 }).pretty();
+// Greater than or equal to 90 and less than or equal to 120. It means: (runtime >= 90 && runtime <= 120)
+db.movieDetails.find({ runtime: { $gte: 90, $lte: 120 } }, { title: 1, runtime: 1, _id: 0 }).pretty();
+db.movieDetails.find({ "tomato.meter": { $gte: 95 }, runtime: { $gt: 180 } }, { title: 1, runtime: 1, _id: 0 }).pretty();
+db.movieDetails.find({ rated: { $ne: "UNRATED" } }, { title: 1, runtime: 1, _id: 0 }).count();
+// Return all the documents where the value of rated is G or PG
+db.movieDetails.find({ rated: { $in: ["G", "PG"] } }, { title: 1, runtime: 1, _id: 0 }).count();
+// The reverse statement of the prepostion above
+db.movieDetails.find({ rated: { $nin: ["G", "PG"] } }, { title: 1, runtime: 1, _id: 0 }).count();
+
+##### Element operators
+// It verifies if there are documents which have tomate.meter field
+db.movieDetails.find({ "tomato.meter": { $exists: true } }).count();
+
+db.moviesScratch.find({ _id: { $type: "string" } }).pretty();
+db.moviesScratch.find({ _id: { $type: "objectId" } }).pretty();
