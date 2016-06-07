@@ -93,3 +93,15 @@ db.movieDetails.find({ "tomato.meter": { $exists: true } }).count();
 
 db.moviesScratch.find({ _id: { $type: "string" } }).pretty();
 db.moviesScratch.find({ _id: { $type: "objectId" } }).pretty();
+
+##### Logical operators
+
+// More details at https://docs.mongodb.com/manual/reference/operator/query-logical/
+
+// $or takes an array as an argument
+db.movieDetails.find({ $or : [ { "tomato.meter": { $gt: 99 } },
+                               { "metacritic": { $gt: 95 } } ] }).count();
+
+// $and is used when we need to specify multiple criteria on the same field							   
+db.movieDetails.find({ $and : [ { "metacritic": { $ne: null } },
+                               { "metacritic": { $exists: true } } ] }).count();
