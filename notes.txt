@@ -105,3 +105,20 @@ db.movieDetails.find({ $or : [ { "tomato.meter": { $gt: 99 } },
 // $and is used when we need to specify multiple criteria on the same field							   
 db.movieDetails.find({ $and : [ { "metacritic": { $ne: null } },
                                { "metacritic": { $exists: true } } ] }).count();
+							   
+##### Regex operator
+// Return all the documents which have awards.text field started by the word "Won ". "\s" means "space".
+db.movieDetails.find({ "awards.text": { $regex: /^Won\s.*/ } }).pretty()
+
+##### Array operators
+
+// More details at https://docs.mongodb.com/manual/reference/operator/query-array/
+
+// Return all documents which have comedy, crime and drame in their genres field.
+db.movieDetails.find({ genres: { $all: ["Comedy", "Crime", "Drama"] } }).pretty()	
+
+// This is entire different from the example using $elemMatch because it won't try by each element contained in the array.
+// Actually each field will be evaluated individually
+db.movieDetails.find({ boxOffice: { country: "UK", revenue: { $gt: 15 } } })
+
+db.movieDetails.find({ boxOffice: {$elemMatch: { country: "UK", revenue: { $gt: 15 } } } })						  
