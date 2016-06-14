@@ -38,6 +38,7 @@ public class App {
     	Helpers.printJson(document);
     	*/
 
+    	/*
 		MongoClient client = new MongoClient();
 		MongoDatabase database = client.getDatabase("school");
 		MongoCollection<Document> people = database.getCollection("people");
@@ -51,5 +52,14 @@ public class App {
 		Helpers.printJson(doc);
 		people.insertOne(doc); // second insert
 		Helpers.printJson(doc);
+		*/
+    	
+    	MongoClient client = new MongoClient();
+    	MongoDatabase database = client.getDatabase("school");
+    	MongoCollection<Document> people = database.getCollection("people");
+    	Document doc;
+    	doc = people.find().first();
+    	System.out.println(doc);
     }
+    
 }
