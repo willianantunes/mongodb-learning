@@ -22,9 +22,11 @@ import com.mongodb.ReadPreference;
 import com.mongodb.ServerAddress;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.Filters;
 import com.mongodb.m101j.util.Helpers;
 
 import java.util.Arrays;
+import java.util.Random;
 
 import org.bson.BsonDocument;
 import org.bson.Document;
@@ -54,12 +56,19 @@ public class App {
 		Helpers.printJson(doc);
 		*/
     	
+    	/*
     	MongoClient client = new MongoClient();
     	MongoDatabase database = client.getDatabase("school");
     	MongoCollection<Document> people = database.getCollection("people");
     	Document doc;
     	doc = people.find().first();
     	System.out.println(doc);
+    	*/
+    	
+    	MongoCollection<Document> collection = null;
+        
+        collection.find(Filters.and(Filters.eq("type", "quiz"), Filters.gt("score", 20), Filters.lt("score", 90)));
+        collection.find(new Document("type", "quiz").append("score", new Document("$gt", 20).append("$lt", 90)));
     }
     
 }
