@@ -22,10 +22,18 @@ import com.mongodb.ReadPreference;
 import com.mongodb.ServerAddress;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
+import com.mongodb.m101j.util.Helpers;
+
+import java.util.Arrays;
+
 import org.bson.BsonDocument;
+import org.bson.Document;
 
 public class App {
     public static void main(String[] args) {
-
+    	Document document = new Document("_id", "user1")
+    			.append("interests", Arrays.asList("basketball", "drumming"));
+    	
+    	Helpers.printJson(document);
     }
 }
