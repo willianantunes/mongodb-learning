@@ -31,9 +31,25 @@ import org.bson.Document;
 
 public class App {
     public static void main(String[] args) {
+    	/*
     	Document document = new Document("_id", "user1")
     			.append("interests", Arrays.asList("basketball", "drumming"));
     	
     	Helpers.printJson(document);
+    	*/
+
+		MongoClient client = new MongoClient();
+		MongoDatabase database = client.getDatabase("school");
+		MongoCollection<Document> people = database.getCollection("people");
+
+		Document doc = new Document("name", "Andrew Erlichson").append("company", "10gen");
+
+		Helpers.printJson(doc);
+		people.insertOne(doc); // first insert
+		Helpers.printJson(doc);
+		doc.remove("_id"); // remove the _id key
+		Helpers.printJson(doc);
+		people.insertOne(doc); // second insert
+		Helpers.printJson(doc);
     }
 }
