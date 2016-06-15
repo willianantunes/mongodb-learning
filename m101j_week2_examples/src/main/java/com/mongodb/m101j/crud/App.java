@@ -86,6 +86,7 @@ public class App {
     	students.find().projection(Projections.fields(Projections.include("phoneNumber"), Projections.exclude("_id")));
     	*/
     	
+    	/*
     	MongoClient client = new MongoClient();
         MongoDatabase db = client.getDatabase("course");
         MongoCollection<Document> collection = db.getCollection("insertTestQuizSortSkipLimit");
@@ -99,6 +100,11 @@ public class App {
     	 
     	List<Document> all = collection.find().sort(new Document("value", -1)).skip(2).limit(1).into(new ArrayList<Document>());
     	all.forEach(i -> printJson(i));
+    	*/
+    	
+    	MongoCollection<Document> scores = null;
+    	
+    	scores.updateOne(new Document("_id", 1),  null);
     }
     
 }
