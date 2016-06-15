@@ -23,6 +23,7 @@ import com.mongodb.ServerAddress;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.Projections;
 import com.mongodb.m101j.util.Helpers;
 
 import java.util.Arrays;
@@ -65,10 +66,18 @@ public class App {
     	System.out.println(doc);
     	*/
     	
+    	/*
     	MongoCollection<Document> collection = null;
         
         collection.find(Filters.and(Filters.eq("type", "quiz"), Filters.gt("score", 20), Filters.lt("score", 90)));
         collection.find(new Document("type", "quiz").append("score", new Document("$gt", 20).append("$lt", 90)));
+        */
+    	
+    	MongoCollection<Document> students = null;
+        
+    	students.find().projection(new Document("phoneNumber", 1).append("_id", 0));
+    	students.find().projection(Projections.fields(Projections.include("phoneNumber"), Projections.excludeId()));
+    	students.find().projection(Projections.fields(Projections.include("phoneNumber"), Projections.exclude("_id")));
     }
     
 }
