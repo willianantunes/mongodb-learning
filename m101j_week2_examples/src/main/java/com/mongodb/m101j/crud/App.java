@@ -26,7 +26,12 @@ import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.Projections;
 import com.mongodb.m101j.util.Helpers;
 
+import static com.mongodb.m101j.util.Helpers.printJson;
+import static java.util.Arrays.asList;
+
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 
 import org.bson.BsonDocument;
@@ -73,11 +78,27 @@ public class App {
         collection.find(new Document("type", "quiz").append("score", new Document("$gt", 20).append("$lt", 90)));
         */
     	
+    	/*
     	MongoCollection<Document> students = null;
         
     	students.find().projection(new Document("phoneNumber", 1).append("_id", 0));
     	students.find().projection(Projections.fields(Projections.include("phoneNumber"), Projections.excludeId()));
     	students.find().projection(Projections.fields(Projections.include("phoneNumber"), Projections.exclude("_id")));
+    	*/
+    	
+    	MongoClient client = new MongoClient();
+        MongoDatabase db = client.getDatabase("course");
+        MongoCollection<Document> collection = db.getCollection("insertTestQuizSortSkipLimit");
+        
+    	Document id0 = new Document("_id", 0).append("value", 10);
+    	Document id1 = new Document("_id", 1).append("value", 5);
+    	Document id2 = new Document("_id", 2).append("value", 7);
+    	Document id3 = new Document("_id", 3).append("value", 20);
+    	
+    	collection.insertMany(asList(id0, id1, id2, id3));
+    	 
+    	List<Document> all = collection.find().sort(new Document("value", -1)).skip(2).limit(1).into(new ArrayList<Document>());
+    	all.forEach(i -> printJson(i));
     }
     
 }
