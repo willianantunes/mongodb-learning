@@ -7,6 +7,7 @@ show collections             	show collections in current database
 show users                   	show users in current database
 db.getName();					Get current database name
 use <db_name>					Set current database
+db.dropDatabase();				Delete/drop current database
 show collections				Show the collections contained in the current database
 
 ########################################
