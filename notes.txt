@@ -10,8 +10,10 @@ use <db_name>					Set current database
 db.dropDatabase();				Delete/drop current database
 show collections				Show the collections contained in the current database
 
+mvn clean compile exec:java -Dexec.mainClass=com.mongdb.App
+
 ########################################
-########## WEEK 2
+########## WEEK 2 - CRUD
 
 ##### Creating documents
 
@@ -32,6 +34,8 @@ Date - Current time stamp
 MAC - The MAC address for the machine on which the MongoDB server is running.
 PID - Process ID.
 Counter - A standard counter to make sure that the ObjectId is indeed unique.
+
+Note that the "Date" label that refers to the first four bytes does in fact reference a UTC datetime with a precision of seconds (not days). When talking about BSON, this is distinct from a timestamp, which is a special internal data type used in MongoDB replication and sharding.
 
 ##### Reading documents
 
@@ -70,7 +74,6 @@ db.movieDetails.find({ rated: "PG" }, { title: 1, _id: 0 } ).pretty();
 // It will include all fields except for the ones explicity excluded below
 db.movieDetails.find( { rated: "PG" }, { writers: 0, actors: 0, _id: 0 } ).pretty();
 
-
 ##### Comparison operators
 
 // More details at https://docs.mongodb.com/manual/reference/operator/query-comparison/
@@ -89,10 +92,13 @@ db.movieDetails.find({ rated: { $in: ["G", "PG"] } }, { title: 1, runtime: 1, _i
 db.movieDetails.find({ rated: { $nin: ["G", "PG"] } }, { title: 1, runtime: 1, _id: 0 }).count();
 
 ##### Element operators
+
 // It verifies if there are documents which have tomate.meter field
 db.movieDetails.find({ "tomato.meter": { $exists: true } }).count();
 
 db.moviesScratch.find({ _id: { $type: "string" } }).pretty();
+// We can count how many documents are stored with _id as String and so on
+db.moviesScratch.find({ _id: { $type: "string" } }).count();
 db.moviesScratch.find({ _id: { $type: "objectId" } }).pretty();
 
 ##### Logical operators
@@ -108,6 +114,7 @@ db.movieDetails.find({ $and : [ { "metacritic": { $ne: null } },
                                { "metacritic": { $exists: true } } ] }).count();
 							   
 ##### Regex operator
+
 // Return all the documents which have awards.text field started by the word "Won ". "\s" means "space".
 db.movieDetails.find({ "awards.text": { $regex: /^Won\s.*/ } }).pretty()
 
@@ -124,6 +131,21 @@ db.movieDetails.find({ boxOffice: { country: "UK", revenue: { $gt: 15 } } })
 
 db.movieDetails.find({ boxOffice: {$elemMatch: { country: "UK", revenue: { $gt: 15 } } } })
 
+##### Updating documents
+
+// Update any document that has imbd.id equal to detail.imdb.id
+// Replace the document with detail
+// If this filter doesn't match any document in my collection, so I want to go ahead and create a new one, with a new _id
+db.movieDetails.updateOne(
+	{ "imbd.id" : detail.imdb.id },
+	{ $set : detail },
+	{ upsert: true }
+)
+
+##### Homework 2.1
+
+mvn compile exec:java -Dexec.mainClass=course.homework.MongoDBSparkFreemarkerStyle
+
 ##### Homework 2.2
 
 mongoimport -d students -c grades < grades.json
@@ -133,5 +155,22 @@ db.grades.count() // You should get 800.
 db.grades.aggregate({'$group':{'_id':'$student_id', 'average':{$avg:'$score'}}}, {'$sort':{'average':-1}}, {'$limit':1})
 // All exam scores greater than or equal to 65, and sort those scores from lowest to highest.
 db.grades.find({ score: { $gte: 65 } }).sort({ 'score': 1 });
+
+##### Homework 2.3
+
 // Sort student by its identity and limit the query to 12
 db.grades.find().sort({'student_id' : 1}).limit(12);
+
+##### Homework 2.3
+
+// Remove the grade of type "homework" with the lowest score for each student from the dataset in the handout. 
+// Since each document is one grade, it should remove one document per student. Sample:
+/*
+> db.grades.find({"student_id" : 0})
+{ "_id" : ObjectId("50906d7fa3c412bb040eb577"), "student_id" : 0, "type" : "exam", "score" : 54.6535436362647 }
+{ "_id" : ObjectId("50906d7fa3c412bb040eb579"), "student_id" : 0, "type" : "homework", "score" : 14.8504576811645 }
+{ "_id" : ObjectId("50906d7fa3c412bb040eb578"), "student_id" : 0, "type" : "quiz", "score" : 31.95004496742112 }
+{ "_id" : ObjectId("50906d7fa3c412bb040eb57a"), "student_id" : 0, "type" : "homework", "score" : 63.98402553675503 }
+*/
+
+
