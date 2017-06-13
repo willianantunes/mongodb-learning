@@ -161,8 +161,6 @@ db.grades.find({ score: { $gte: 65 } }).sort({ 'score': 1 });
 // Sort student by its identity and limit the query to 12
 db.grades.find().sort({'student_id' : 1}).limit(12);
 
-##### Homework 2.3
-
 // Remove the grade of type "homework" with the lowest score for each student from the dataset in the handout. 
 // Since each document is one grade, it should remove one document per student. Sample:
 /*
@@ -193,5 +191,15 @@ db.grades.find( { }, { 'student_id' : 1, 'type' : 1, 'score' : 1, '_id' : 0 } ).
 // The identity of the student with the highest average in the class
 db.grades.aggregate( { '$group' : { '_id' : '$student_id', 'average' : { $avg : '$score' } } }, { '$sort' : { 'average' : -1 } }, { '$limit' : 1 } )
 	
-	
+##### Homework 2.5
+
+// Which of the choices below is the title of a movie from the year 2013 that is rated PG-13 and won no awards?
+
+db.movieDetails.find({ "rated": "PG-13", "year": 2013, "awards.wins": 0})	
+
+##### Homework 2.6
+
+// Using the video.movieDetails collection, how many movies list "Sweden" second in the the list of countries.
+
+db.movieDetails.find({ "countries.1": "Sweden" })	
 	
