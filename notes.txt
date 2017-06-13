@@ -173,4 +173,25 @@ db.grades.find().sort({'student_id' : 1}).limit(12);
 { "_id" : ObjectId("50906d7fa3c412bb040eb57a"), "student_id" : 0, "type" : "homework", "score" : 63.98402553675503 }
 */
 
+db.grades.aggregate(
+	{
+		"$match" : { "type" : "homework" }
+	},
+	{
+		'$group': {
+		'_id' : { student_id : "$student_id", type : "$type" },
+		'min' : { '$min' : '$score' }
+		}
+	}, 
+	{'$sort':{'_id':-1}}, 
+	{'$limit':1});
 
+// The result should be 600. Now let us find the student who holds the 101st best grade across all grades:
+db.grades.find().sort( { 'score' : -1 } ).skip( 100 ).limit( 1 )	
+// Now let us sort the students by student_id , and score, while also displaying the type to then see what the top five docs are:
+db.grades.find( { }, { 'student_id' : 1, 'type' : 1, 'score' : 1, '_id' : 0 } ).sort( { 'student_id' : 1, 'score' : 1 } ).limit( 5 )
+// The identity of the student with the highest average in the class
+db.grades.aggregate( { '$group' : { '_id' : '$student_id', 'average' : { $avg : '$score' } } }, { '$sort' : { 'average' : -1 } }, { '$limit' : 1 } )
+	
+	
+	
