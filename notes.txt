@@ -202,4 +202,85 @@ db.movieDetails.find({ "rated": "PG-13", "year": 2013, "awards.wins": 0})
 // Using the video.movieDetails collection, how many movies list "Sweden" second in the the list of countries.
 
 db.movieDetails.find({ "countries.1": "Sweden" })	
-	
+
+########################################
+########## WEEK 3 - SCHEMA DESIGN
+
+// Living wihout contraints
+
+// --------- Living wihout transactions
+
+Restructure to create a single document and then make good use of atomic operations
+Implement transaction in software like MongoDB critical section
+And at last tolerate a little bit of inconsistency
+
+Which of the following operations operate atomically within a single document? Check all that apply.
+Update, findAndModify, $addToSet(within an update) and $push within an update
+
+// --------- One to one relations
+
+Frequency of access
+Size of the items
+Atomicity of data
+
+// --------- One to many relations	
+
+One modest type of one to many is when you think about people vs city situation. It's complicated to make a good relationship with MongoDB, true linking is one way to resolve it.
+
+// --------- One to few relations	
+
+It's like one to many, but a lot easier with MongoDB. Blog post vs comments is a typical  situation.
+
+// --------- Many to many relations
+
+Samples situations are books vs authors and students vs teachers. As you can see they are not truly many to many but few to few, so you can linking or embedding, of course you must evaluate pretty well which one best suits you.
+
+// --------- Multikeys indexes
+
+> db.students.find()
+{ "_id" : 0, "name" : "Andrew Erlichson", "teachers" : [ 0, 1 ] }
+{ "_id" : 1, "name" : "Richard Kreuter", "teachers" : [ 0, 1, 3 ] }
+{ "_id" : 2, "name" : "Eliot Horowitz", "teachers" : [ 1, 2, 3 ] }
+{ "_id" : 3, "name" : "Mark Heinrich", "teachers" : [ 0, 3 ] }
+> db.teachers.find()
+{ "_id" : 0, "name" : "Mark Horowitz" }
+{ "_id" : 1, "name" : "John Hennessy" }
+{ "_id" : 2, "name" : "Bruce Wolley" }
+{ "_id" : 3, "name" : "James Plummer" }
+> db.students.ensureIndex({ 'teachers' : 1 })
+// All the students who had Mark Horowitz and John Hennessy as professors
+> db.students.find({ 'teachers' : { $all : [0,1] } )
+{ "_id" : 0, "name" : "Andrew Erlichson", "teachers" : [ 0, 1 ] }
+{ "_id" : 1, "name" : "Richard Kreuter", "teachers" : [ 0, 1, 3 ] }
+// How do we know that used an index?
+> db.students.find({ 'teachers' : { $all : [0,1] } ).explain()
+
+// --------- Benefits of embedding
+
+The main benefit of embedding data from two different collections and bringing it together into one collection is performance.
+
+- Improved read performance
+- One round trip to the DB
+
+// --------- Representing trees
+
+https://docs.mongodb.com/manual/tutorial/model-tree-structures-with-ancestors-array/
+
+Given the following typical document for a e-commerce category hierarchy collection called categories.
+
+{
+  _id: 34,
+  name: "Snorkeling",
+  parent_id: 12,
+  ancestors: [12, 35, 90]
+}
+
+Which query will find all descendants of the snorkeling category?
+
+db.categories.find({ ancestors : 34 })
+
+// --------- ODM introduction
+
+https://mongodb.github.io/morphia/
+
+ODM means Object Document Mapper.
