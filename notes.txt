@@ -284,3 +284,137 @@ db.categories.find({ ancestors : 34 })
 https://mongodb.github.io/morphia/
 
 ODM means Object Document Mapper.
+
+##### Homework 3.1
+
+// Write a program in the language of your choice that will remove the lowest homework score for each student. Since there is a single document for each student containing an array of scores, you will need to update the scores array and remove the homework.
+
+// Remember, just remove a homework score. Don't remove a quiz or an exam!
+
+// Hint/spoiler: With the new schema, this problem is a lot harder and that is sort of the point. One way is to find the lowest homework in code and then update the scores array with the low homework pruned.
+
+use school
+db.students.count() // should return 200
+db.students.find( { _id : 137 } ).pretty()
+
+{
+	"_id" : 137,
+	"name" : "Tamika Schildgen",
+	"scores" : [
+		{
+			"type" : "exam",
+			"score" : 4.433956226109692
+		},
+		{
+			"type" : "quiz",
+			"score" : 65.50313785402548
+		},
+		{
+			"type" : "homework",
+			"score" : 89.5950384993947
+		},
+		{
+			"type" : "homework",
+			"score" : 54.75994689226145
+		}
+	]
+}
+
+db.students.find( { _id : 19 } ).pretty()
+
+{
+	"_id" : 19,
+	"name" : "Gisela Levin",
+	"scores" : [
+		{
+			"type" : "exam",
+			"score" : 44.51211101958831
+		},
+		{
+			"type" : "quiz",
+			"score" : 0.6578497966368002
+		},
+		{
+			"type" : "homework",
+			"score" : 93.36341655949683
+		},
+		{
+			"type" : "homework",
+			"score" : 49.43132782777443
+		}
+	]
+}
+
+// Annotations
+
+> db.students.aggregate([ {'$sort':{'_id':-1}},  {'$limit':4} ]);
+{ "_id" : 199, "name" : "Rae Kohout", "scores" : [ { "type" : "exam", "score" : 82.11742562118049 }, { "type" : "quiz", "score" : 49.61
+295450928224 }, { "type" : "homework", "score" : 28.86823689842918 }, { "type" : "homework", "score" : 5.861613903793295 } ] }
+{ "_id" : 198, "name" : "Timothy Harrod", "scores" : [ { "type" : "exam", "score" : 11.9075674046519 }, { "type" : "quiz", "score" : 20
+.51879961777022 }, { "type" : "homework", "score" : 55.85952928204192 }, { "type" : "homework", "score" : 64.85650354990375 } ] }
+{ "_id" : 197, "name" : "Tonisha Games", "scores" : [ { "type" : "exam", "score" : 38.51269589995049 }, { "type" : "quiz", "score" : 31
+.16287577231703 }, { "type" : "homework", "score" : 79.15856355963004 }, { "type" : "homework", "score" : 56.17504143517339 } ] }
+{ "_id" : 196, "name" : "Santiago Dollins", "scores" : [ { "type" : "exam", "score" : 52.04052571137036 }, { "type" : "quiz", "score" :
+ 33.63300076481705 }, { "type" : "homework", "score" : 4.629511012591447 }, { "type" : "homework", "score" : 78.79257377604428 } ] }
+ 
+// https://docs.mongodb.com/manual/reference/operator/aggregation/unwind/ 
+ 
+> db.students.aggregate([ { $unwind: "$scores" }, {'$sort':{'_id':-1}},  {'$limit':4} ]);
+{ "_id" : 199, "name" : "Rae Kohout", "scores" : { "type" : "homework", "score" : 5.861613903793295 } }
+{ "_id" : 199, "name" : "Rae Kohout", "scores" : { "type" : "quiz", "score" : 49.61295450928224 } }
+{ "_id" : 199, "name" : "Rae Kohout", "scores" : { "type" : "homework", "score" : 28.86823689842918 } }
+{ "_id" : 199, "name" : "Rae Kohout", "scores" : { "type" : "exam", "score" : 82.11742562118049 } }
+
+> db.students.aggregate([ { $unwind: "$scores" }, { $group: { '_id' : { _id : "$_id", type : "$scores.type" }, 'min' : { '$min' : '$scores.score' } } }, {'$sort':{'_id':-1}},  {'$limit':3} ]);
+{ "_id" : { "_id" : 199, "type" : "quiz" }, "min" : 49.61295450928224 }
+{ "_id" : { "_id" : 199, "type" : "homework" }, "min" : 5.861613903793295 }
+{ "_id" : { "_id" : 199, "type" : "exam" }, "min" : 82.11742562118049 }
+
+> db.students.aggregate([ { $unwind: "$scores" }, { $group: { '_id' : { _id : "$_id", type : "$scores.type" }, 'min' : { '$min' : '$scores.score' } } }, {'$sort':{'_id':-1}},  {'$limit':4} ]);
+{ "_id" : { "_id" : 199, "type" : "quiz" }, "min" : 49.61295450928224 }
+{ "_id" : { "_id" : 199, "type" : "homework" }, "min" : 5.861613903793295 }
+{ "_id" : { "_id" : 199, "type" : "exam" }, "min" : 82.11742562118049 }
+{ "_id" : { "_id" : 198, "type" : "quiz" }, "min" : 20.51879961777022 }
+
+> db.students.aggregate([ { $unwind: "$scores" }, { $match : { "scores.type" : "homework" } }, { $group: { '_id' : { _id : "$_id", type: "$scores.type" }, 'min' : { '$min' : '$scores.score' } } }, {'$sort':{'_id':-1}},  {'$limit':4} ]);
+{ "_id" : { "_id" : 199, "type" : "homework" }, "min" : 5.861613903793295 }
+{ "_id" : { "_id" : 198, "type" : "homework" }, "min" : 55.85952928204192 }
+{ "_id" : { "_id" : 197, "type" : "homework" }, "min" : 56.17504143517339 }
+{ "_id" : { "_id" : 196, "type" : "homework" }, "min" : 4.629511012591447 }
+
+db.students.aggregate([	
+	{ $unwind: "$scores" },
+	{ $match : { "scores.type" : "homework" } },
+	{ $group: {
+			'_id' : { _id : "$_id", type : "$scores.type" },
+			'min' : { '$min' : '$scores.score' }
+		}
+	},	
+	{'$sort':{'_id':-1}}, 
+	{'$limit':1}
+]);
+
+https://docs.mongodb.com/manual/reference/operator/update/positional/#update-embedded-documents-using-multiple-field-matches
+https://docs.mongodb.com/manual/reference/operator/update/pull/#remove-items-from-an-array-of-documents
+
+db.students.find({ "_id": 199 })
+
+db.students.update(
+	{ "_id": 199 },
+	{ $pull: { scores: { type: "homework" , score: 5.861613903793295 } } },
+	{ multi: true }
+)
+
+// To verify that you have completed this task correctly, provide the identity (in the form of their _id) of the student with the highest average in the class with following query that uses the aggregation framework. The answer will appear in the _id field of the resulting document.
+
+db.students.aggregate( [
+  { '$unwind': '$scores' },
+  {
+    '$group':
+    {
+      '_id': '$_id',
+      'average': { $avg: '$scores.score' }
+    }
+  },
+  { '$sort': { 'average' : -1 } },
+  { '$limit': 1 } ] )
