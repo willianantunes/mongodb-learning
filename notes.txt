@@ -12,6 +12,9 @@ show collections				Show the collections contained in the current database
 
 mvn clean compile exec:java -Dexec.mainClass=com.mongdb.App
 
+> docker run -it -p 27017:27017 --name myMongo -d mongo
+> docker exec -it myMongo mongo
+
 ########################################
 ########## WEEK 2 - CRUD
 
@@ -206,7 +209,25 @@ db.movieDetails.find({ "countries.1": "Sweden" })
 ########################################
 ########## WEEK 3 - SCHEMA DESIGN
 
-// Living wihout contraints
+// --------- Introduction
+
+// https://en.wikipedia.org/wiki/Third_normal_form
+
+// Application driven schema
+
+MongoDB keys: 
+	1 - Rich documents
+	2 - Pre Join / Embed Data
+	3 - No Mongo Joins - it doesn't support joins directly inside de kernel, you must do it inside de application
+	4 - There are no constraints
+	5 - Atomic operations - MongoDB doesn't support transactions, but it does support atomic operations within one document.
+	6 - No declared schema
+
+What's the single most important factor in designing your application schema within MongoDB?
+A: Matching the data access patterns of your application
+
+What's the single most important factor in designing your application schema within MongoDB?
+A: Matching the data access patterns of your application
 
 // --------- Living wihout transactions
 
