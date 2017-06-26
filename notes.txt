@@ -439,3 +439,209 @@ db.students.aggregate( [
   },
   { '$sort': { 'average' : -1 } },
   { '$limit': 1 } ] )
+  
+########################################
+########## WEEK 4 - PERFORMANCE  
+
+// --------- Storage Engines: Introduction
+
+https://docs.mongodb.com/manual/core/storage-engines/
+
+Main ways of performance:
+	- Indexing
+	- Sharding - Distributing database queries across multiple servers
+	
+Storage engine: It is located between MongoDB itself and for example a type of persistence storage like hard disk. It can use memory to storage data before send it to disk. If we compare to something real it's like a motor engine in your car, you can switch it for another when you like it to match some sort of requirement. MongoDB ships with two storage engines:
+	- MMAP: It's the default for 3.0.
+	- WiredTiger: It started to be the default on 3.2 --> https://docs.mongodb.com/manual/release-notes/3.2/#wiredtiger-as-default
+
+The storage engine directly determines which of the following?
+A: The data file format; Format of indexes.
+
+// --------- Storage Engines: MMAPv1
+
+1 - Collection level locking
+2 - In place updates
+
+http://docs.mongodb.org/manual/core/storage/?&_ga=2.176324003.721559069.1498430831-1068873678.1493258930#power-of-2-allocation
+
+> man mmap // The description is "allocate memory, or map files or devices into memory"
+
+Which of the following statements about the MMAPv1 storage engine are true? 
+A: MMAPv1 automatically allocates power-of-two-sized documents when new documents are inserted; MMAPv1 is built on top of the mmap system call that maps files into memory.
+
+Example that has record spaces allocated for as few as 4 bytes; in fact, the minimum record space in MongoDB 3.0 is 32 bytes.
+
+// --------- Storage Engines: WiredTiger
+
+1 - Document level concurrency
+2 - Compressions of DATA and INDEXES
+3 - No in place update
+
+You can use this storage engine using -storageEngine. Sample:
+> mongod -dbpath myCustomDir -storageEngine wiredTiger
+> db.foo.insert({ name: 'Budega' })
+> db.foo.stats(); // See the properties of the collection
+
+Which of the following are features of the WiredTiger storage engine?
+A: Document-level concurrency; Compression.
+
+// --------- Indexes
+
+https://docs.mongodb.com/manual/indexes/
+https://en.wikipedia.org/wiki/B-tree -> A type of balanced search tree used frequently for indexing database tables
+
+(a, b, c)
+	a - OK
+	ab - OK
+	abc - OK
+	b - NO
+	c - NO
+	And so on...
+	
+Writes: Indexes actually slows down your writes... Writes are much faster when there is no index
+Read: But READS will be much faster!
+
+Which optimization will typically have the greatest impact on the performance of a database?
+A: Adding appropriate indexes on large collections so that only a small percentage of queries need to scan the collection.
+
+// --------- Creating indexes
+
+Use create_scores2.6f9f5645026a.js file to create 1.000.000 documents.
+> db.students.find({ student_id: 5 }) // It will take a bunch of time
+> db.students.explain().find({ student_id: 5 })
+// On winningPlan you can see which type of scan was used during the query. For our case is COLLSCAN, it means that the collection was fully scanned (all the documents) in order to retrieve what was asked.
+> db.students.findOne({ student_id: 5 }) // Faster than the find() option
+> db.students.createIndex({ student_id: 1 }) // We want to create index on student_id ascending
+> db.students.explain().find({ student_id: 5 })
+> db.students.explain(true).find({ student_id: 5 }) // You can see how much documents were used in order to retrieve what was asked
+> db.students.createIndex({ student_id: 1, class_id: -1 }) // student_id ascending and class_id descending
+
+// --------- Discovering and Deleting Indexes
+
+> db.students.getIndexes(); // There is default index which is on _id and you can't delete it
+> db.students.dropIndexex({ student_id: 1 })
+
+// --------- Multikey Indexes
+
+Creating indexes on arrays is known as "multikey indexes".
+
+{
+	name : 'Budega',
+	tags : [ 'tennis', 'programming', 'music' ],
+	color : 'blue',
+	location : ['SP', 'RJ']
+}
+
+Legal indexes: (tags), (tags, color)
+Illegal indexes: (tags, location) -> Multikey indexes doesn't allow compound index to have two arrays
+
+> db.foo.insert({ a : 1, b: 2 })
+> db.foo.find()
+> db.foo.createIndex({ a : 1, b : 1 })
+> db.foo.explain().find({ a : 1, b : 1 }) // See indexName and isMultiKey fields
+> db.foo.insert({ a : 3, b: [3,5,7] })
+> db.foo.explain().find({ a : 1, b : 1 }) // See isMultiKey equals true now
+> db.foo.explain().find({ a : 1, b : 5 })
+> db.foo.getIndexes();
+> db.foo.insert({ a : [3,4,6], b: [7,8,9] }) // It won't work: cannot index parallel arrays [b] [a]
+> db.foo.insert({ a : [3,4,6], b: 8 }) // It works because it doesn't have parallel arrays
+
+// --------- Dot notation and multikey
+
+https://docs.mongodb.com/manual/reference/operator/query/elemMatch/
+
+> db.students.createIndex({ 'scores.score' : 1 })
+> db.students.explain().find({ 'scores.score' : { '$gt' : 99 } })
+> db.students.find({ 'scores' : { '$elemMatch' : { type : 'exam', score : { '$gt' : 99.8 } } } }).count()
+> db.students.explain().find({ 'scores' : { '$elemMatch' : { type : 'exam', score : { '$gt' : 99.8 } } } }) // You can see that the index search is made and then elemMatch ran in each document which were retrieved
+> db.students.explain(true).find({ 'scores' : { '$elemMatch' : { type : 'exam', score : { '$gt' : 99.8 } } } }) // Just to make sure that the above statement is true... See docsExamined field.
+> db.students.find({ 'scores.score' : { '$gt' : 99.8 } }).count() // It must matched docsExamined above
+> db.students.find({ '$and' : [{ 'scores.type' : 'exam' }, { 'scores.score' : { '$gt' : 99.8 } }] }) // It does not work as elemMatch as you may get documents which you didn't want to
+> db.students.explain().find({ '$and' : [{ 'scores.type' : 'exam' }, { 'scores.score' : { '$gt' : 99.8 } }] })
+
+Suppose you have a collection called people in the database earth with documents of the following form:
+
+{
+    "_id" : ObjectId("551458821b87e1799edbebc4"),
+    "name" : "Eliot Horowitz",
+    "work_history" : [
+        {
+            "company" : "DoubleClick",
+            "position" : "Software Engineer"
+        },
+        {
+            "company" : "ShopWiki",
+            "position" : "Founder & CTO"
+        },
+        {
+            "company" : "MongoDB",
+            "position" : "Founder & CTO"
+        }
+    ]
+}
+
+Type the command that you would issue in the Mongo shell to create an index on company, descending.
+
+> db.people.createIndex({ 'work_history.company' : -1 })
+
+
+// --------- Index Creation Options, Unique
+
+https://docs.mongodb.com/v3.0/reference/method/db.collection.createIndex/#options
+
+> db.stuff.drop();
+> db.stuff.insert({ 'thing' : 'apple' })
+> db.stuff.insert({ 'thing' : 'pear' })
+> db.stuff.insert({ 'thing' : 'apple' })
+> db.stuff.find()
+> db.stuff.createIndex({ 'thing' : 1 })
+> db.stuff.dropIndex({ 'thing' : 1 }, { unique: true }) // Error because there are two apples
+> db.stuff.remove({ 'thing' : 'apple' }, { justOne: true })
+> db.stuff.dropIndex({ 'thing' : 1 }, { unique: true }) // It works
+> db.stuff.insert({ 'thing' : 'pear' }) // Duplicate key error
+> db.stuff.getIndexes()
+
+Please provide the mongo shell command to create a unique index on student_id, class_id, ascending for the collection students.
+> db.students.createIndex({ student_id: 1, class_id: 1 }, { unique : true })
+
+// --------- Sparse Indexes
+
+https://docs.mongodb.com/manual/indexes/#sparse-indexes
+
+It's a sort of index that can be used when the index key is missing from some of documents.
+When you specify this options you tells MongoDB that it should not include in the index documents that are missing the key.
+
+> db.employees.createIndex({ cell: 1}, { unique : true, sparse, true } })
+
+One advantage of using sparse index is that it uses a lot less space than the common one.
+
+What are the advantages of a sparse index?
+A: The index will be smaller than it would if it were not sparse; You can gain greater flexibility with creating Unique indexes.
+
+// --------- Index creation, background
+
+http://docs.mongodb.org/manual/core/index-creation/?_ga=2.144413107.721559069.1498430831-1068873678.1493258930#index-creation-background
+
+• Foreground
+	1 - Fast
+	2 - Blocks writers and readers in the database, it means... DO NOT DO IT IN PRODUCTION SYSTEMS!
+• Background
+	1 - Slower
+	2 - DON'T block writers and readers in the database, it means... DO NOT DO IT IN PRODUCTION SYSTEMS!
+	
+> db.students.createIndex({ 'score.score' : 1 }, { background : true })
+
+Which things are true about creating an index in the background in MongoDB.
+A: Although the database server will continue to take requests, a background index creation still blocks the mongo shell that you are using to create the index; Creating an index in the background takes longer than creating it in the foreground.
+
+Note that, in MongoDB 2.2, the answer that you can only make one background index per database would have been correct.
+
+// --------- Explain
+
+https://docs.mongodb.com/manual/reference/explain-results/
+
+Explain is used to find out what the database is doing with your query, how it's executing it, what indexes it's using and how many documents it inspected when it actually runs the query. It didn't bring data to the client, only the "explain" information.
+
+> var exp = db.foo.explain()
+> exp.help()
