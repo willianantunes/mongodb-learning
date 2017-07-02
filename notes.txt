@@ -637,7 +637,7 @@ A: Although the database server will continue to take requests, a background ind
 
 Note that, in MongoDB 2.2, the answer that you can only make one background index per database would have been correct.
 
-// --------- Explain
+// --------- Using explain
 
 https://docs.mongodb.com/manual/reference/explain-results/
 
@@ -645,3 +645,547 @@ Explain is used to find out what the database is doing with your query, how it's
 
 > var exp = db.foo.explain()
 > exp.help()
+
+// --------- Explain: verbosity
+
+Explain runs using "query planner" mode by default and we're using it like that so far. There are two other modes:
+	0 - Query planner: Standard one. It tells you mostly what the database would use in terms of the indexes
+	1 - Execution stats: It includes query planner and it tells the results of the query like number of documents returned, how much time it will take to accomplish the query and so on.
+	2 - All plans execution: It includes query planner and execution stats. When you run using this option actually you're running the query optimizer that periodically runs to determine what index would be used for any particular shape of query.
+> var exp = db.example.explain("executionStats")
+> exp.find({ a : 17, b : 55 })
+> db.example.dropIndex({ a : 1, b : 1 })
+> exp.find({ a : 17, b : 55 })
+> db.example.createIndex({ a : 1, b : 1 })
+> var exp = db.example.explain("allPlansExecution")
+> exp.find({ a : 17, b : 55 })
+
+Given the following output from explain, what is the best description of what happened during the query?
+
+> exp = db.example.explain("executionStats")
+Explainable(test.example)
+> exp.find( { a : 7 } )
+{
+    "queryPlanner" : {
+        "plannerVersion" : 1,
+        "namespace" : "test.example",
+        "indexFilterSet" : false,
+        "parsedQuery" : {
+            "a" : {
+                "$eq" : 7
+            }
+        },
+        "winningPlan" : {
+            "stage" : "COLLSCAN",
+            "filter" : {
+                "a" : {
+                    "$eq" : 7
+                }
+            },
+            "direction" : "forward"
+        },
+        "rejectedPlans" : [ ]
+    },
+    "executionStats" : {
+        "executionSuccess" : true,
+        "nReturned" : 10000,
+        "executionTimeMillis" : 619,
+        "totalKeysExamined" : 0,
+        "totalDocsExamined" : 999999,
+        "executionStages" : {
+            "stage" : "COLLSCAN",
+            "filter" : {
+                "a" : {
+                    "$eq" : 7
+                }
+            },
+            "nReturned" : 10000,
+            "executionTimeMillisEstimate" : 520,
+            "works" : 1000001,
+            "advanced" : 10000,
+            "needTime" : 990000,
+            "needFetch" : 0,
+            "saveState" : 7812,
+            "restoreState" : 7812,
+            "isEOF" : 1,
+            "invalidates" : 0,
+            "direction" : "forward",
+            "docsExamined" : 999999
+        }
+    },
+    "serverInfo" : {
+        "host" : "cross-mb-air.local",
+        "port" : 27017,
+        "version" : "3.0.1",
+        "gitVersion" : "534b5a3f9d10f00cd27737fbcd951032248b5952"
+    },
+    "ok" : 1
+}
+
+A: The query scanned 999,999 documents, returning 10,000 in 619 milliseconds.
+
+// --------- Covered Queries
+
+https://www.tutorialspoint.com/mongodb/mongodb_covered_queries.htm
+https://docs.mongodb.com/manual/core/query-optimization/#covered-query
+
+A covered query is a query that can be satisfied entirely using an index and does not have to examine any documents.	
+
+You would like to perform a covered query on the example collection. You have the following indexes:
+
+{ name : 1, dob : 1 }
+{ _id : 1 }
+{ hair : 1, name : 1 }
+
+Which of the following is likely to be a covered query?
+A: db.example.find( { name : { $in : [ "Bart", "Homer" ] } }, {_id : 0, dob : 1, name : 1} )
+
+// --------- When is an index used?
+
+We no longer evict plans from the cache after a threshold number of writes. Instead, we evict when the "works" of the first portion of the query exceed the number of "works" used to decide on the winning plan by a factor of 10x. You can see the "works" for a particular plan using .explain("executionStats").
+
+Let's suppose we have the following indexes:
+	1 - b,c
+	2 - c,d
+	3 - d,e
+	4 - e,f
+	5 - a,b,c
+When we issue a query where it may use index 1, 2 or 5, MongoDB will then create three query plans. In three parallel threads issue the query such that each one will use a different index and see which one is able to return results the fastest.
+
+The WINNING QUERY PLAN in stored in a CACHE for future use for queries of that shape. The cache is erased using one of the following:
+1 - Threshold (number of writes)
+2 - Rebuild the index
+3 - Any index is added or dropped from the collection
+4 - mongod proccess is restarted
+
+Given collection foo with the following index:
+
+db.foo.createIndex( { a : 1, b : 1, c : 1 } )
+
+Which of the following queries will use the index?
+A. db.foo.find( { a : 3 } )
+A. db.foo.find( { c : 1 } ).sort( { a : 1, b : 1 } )
+
+// --------- How large is your index?
+
+Working set: It's the portion of data that clients are frequently accessing and is located in memory. The key of it is the index, so it's important that our indexes fit into memory.
+
+db.students.stats();
+db.students.totalIndexSize();
+
+Wired tiger storage engine may use prefix compression to thinner indexes when compared with MMAP.
+
+// --------- Number of index entries
+
+https://docs.mongodb.com/manual/reference/method/cursor.showRecordId/?_ga=2.126767821.1114842536.1499002021-1068873678.1493258930#cursor.showRecordId
+
+In this lecture, we talk about the cost of moving documents, in terms of updating index entries. That cost only exists in the MMAPv1 storage engine. In the WiredTiger storage engine, index entries don't contain pointers to actual disk locations. Instead, in WiredTiger, the index points to an internal document identifier (the RecordId) that is immutable. Therefore, when a document is updated, its index does not need to be updated at all.
+
+Index cardinality: How many index points are there for each different type of index that MongoDB supports:
+	1 - Regular: For every single key that you put in the index, there's certainly going to be an index point. And in addition, if there is no key, then there's going to be an index point under the null entry ----> 1:1
+	2 - Sparse: When a document is missing the key being indexed, it's not in the index because it's a null and we don't keep nulls in the index for a sparse index. ----> <= number of documents
+	3 - Multikey: It's a index on an array value. Then there may be multiple index points for each document. For example... If there is a tag which has 4 elements, then there's going to be an index point for every single one these keys/elements ----> > number of documents
+
+Let's say you update a document with a key called tags and that update causes the document to need to get moved on disk. Assume you are using the MMAPv1 storage engine. If the document has 100 tags in it, and if the tags array is indexed with a multikey index, how many index points need to be updated in the index to accommodate the move? Put just the number below.
+A. 100	
+
+// --------- Geospatial indexes
+
+Obs.: This lecture uses the now deprecated ensureIndex shell command. The preferred command is createIndex. Anywhere you see me using ensureIndex imagine I used createIndex.
+
+Geospatial indexes allow us to find things based on location (it can be any field, but must match its shape).
+
+https://docs.mongodb.com/manual/reference/operator/query-geospatial/
+
+'location' : [x, y]
+createIndex({ 'location' : '2d', 'type': 1 }) // 2d tells the database that this is a two-dimensional geospatial index
+find({ 'location' : { $near : [x, y] }}).limit(20) // Sample: all the shops that were closest to this "person" standing at coordinates x and y limiting to 20 of them.
+
+Suppose you have a 2D geospatial index defined on the key location in the collection places. Write a query that will find the closest three places (the closest three documents) to the location 74, 140.
+A. db.places.find({ 'location' : { $near : [74, 140] }}).limit(3)
+
+// --------- Geospatial spherical
+
+2dsphere is a type of index for it.
+MongoDB uses a location specification called GeoJSON.
+
+db.places.createIndex({ 'location' : '2dsphere'})
+db.places.getIndexes()
+db.places.find({
+	location : {
+		$near : {
+			$geometry : {
+				type : "Point",
+				coordinates : [-122.166641, 37.4278925]
+			},
+			$maxDistance : 2000
+		}
+	}	
+})
+
+What is the query that will query a collection named "stores" to return the stores that are within 1,000,000 meters of the location latitude=39, longitude=-130? Type the query in the box below. Assume the stores collection has a 2dsphere index on "loc" and please use the "$near" operator. Each store record looks like this:
+
+{
+    "_id":{
+        "$oid":"535471aaf28b4d8ee1e1c86f"
+    },
+    "store_id":8,
+    "loc":{
+        "type":"Point",
+        "coordinates":[
+            -37.47891236119904,
+            4.488667018711567
+        ]
+    }
+}
+
+A. db.stores.find({ 'loc' : { $near : { $geometry : { 'type' : 'Point', 'coordinates' : [-130,39]}, $maxDistance : 1000000}}})
+
+// --------- Text indexes
+
+Full text search index...
+
+https://docs.mongodb.com/manual/core/index-text/
+https://docs.mongodb.com/manual/reference/operator/query/text/
+
+db.sentences.createIndex({ 'words' : 'text' }) // it enables full text search
+db.senteces.find({ $text : { $search : 'dog' }})
+
+https://docs.mongodb.com/manual/reference/operator/aggregation/meta/#exp._S_meta
+
+db.senteces.find({ $text : { $search : 'dog' }}, { 'score' : { $meta : 'textScore' }}).sort({ 'score' : { $meta : 'textScore'}})
+
+// -- Quiz
+
+You create a text index on the "title" field of the movies collection, and then perform the following text search:
+
+> db.movies.find( { $text : { $search : "Big Lebowski" } } )
+
+Which of the following documents will be returned, assuming they are in the movies collection? Check all that apply.
+A. { "title" : "The Big Lebowski" , star: "Jeff Bridges" }
+A. { "title" : "Big" , star : "Tom Hanks" }
+A. { "title" : "Big Fish" , star: "Ewan McGregor" }
+
+// --------- Efficiency of Index Use / Designing/Using Indexes
+
+Main goal: Efficient read/write operations
+One good way to achieve it is to test your indexes under some real world workloads and make adjustments from there.
+Key goals:
+	- Selectivity - Minimize records scanned
+
+https://docs.mongodb.com/manual/reference/method/cursor.hint/	
+
+db.students.find({student_id:{$gt:500000}, class_id:54}).sort({student_id:1}).hint({class_id:1}).explain("executionstats")
+
+// -- Quiz
+
+1 - In general, based on the preceding lecture, what is the primary factor that determines how efficiently an index can be used?
+A. The selectivity of the index.
+WHY: Selectivity is the primary factor that determines how efficiently an index can be used. Ideally, the index enables us to select only those records required to complete the result set, without the need to scan a substantially larger number of index keys (or documents) in order to complete the query. Selectivity determines how many records any subsequent operations must work with. Fewer records means less execution time.
+
+2 - In general, which of the following rules of thumb should you keep in mind when building compound indexes? Check all that apply. For this question, use the following definitions:
+
+equality field: field on which queries will perform an equality test
+sort field: field on which queries will specify a sort
+range field: field on which queries perform a range test
+
+A. Equality fields before range fields
+A. Sort fields before range fields
+A. Equality fields before sort fields
+
+// --------- Logging slow queries
+
+https://docs.mongodb.com/manual/tutorial/manage-the-database-profiler/#profiling-levels
+
+MongoDB automatically logs slows queries of above 100 milliseconds right to the log.
+
+// --------- Profiling
+
+https://docs.mongodb.com/manual/reference/database-profiler/
+
+There are THREE levels for the profiler.
+	Level 0: Standard level and by default it is off.
+	Level 1: It logs all slow queries which are above 100 milliseconds.
+	Level 2: It logs all queries with no constraint --> Used during development general known as debugging feature.
+> mongod -dppath /usr/local/var/mongodb --profile 1 --slowms 2
+> db.students.find({ 'student_id' : 10000 })
+> db.system.profile.find().pretty()
+// Find anything which name space (ns) matches students collection and sort by timestamp (ts)
+> db.system.profile.find({ ns : /school.students/ }).sort({ ts : 1 })pretty() 
+> db.system.profile.find({ millis : { $gt : 1 }}).sort({ ts : 1 })pretty() 
+
+> db.getProfilingLevel()
+> db.getProfilingStatus()
+// Set profiling level to 1 and log queries which take 4 milliseconds to execute
+> db.setProfilingLevel(1, 4)
+// Turn everything off
+> db.setProfilingLevel(0)
+
+// -- Quiz
+
+Write the query to look in the system profile collection for all queries that took longer than one second, ordered by timestamp descending.
+
+A. db.system.profile.find({ millis : { $gt : 1000 }}).sort({ ts : -1 })
+
+// --------- mongotop
+
+https://docs.mongodb.com/manual/reference/program/mongotop/
+
+Mongotop is named after the Unix Top command. It gives a high level view of where Mongo is spending its time.
+
+// --------- mongostat
+
+https://docs.mongodb.com/manual/reference/program/mongostat/
+
+Mongostat is a performance tuning command and is pretty similar to iostat command from the Unix world.
+
+// -- Quiz
+
+Which of the following statements about mongostat output are true?
+A. The getmore column concerns the number of requests per time interval to get additional data from a cursor
+A. The faults column appears only in the mmapv1 output
+
+// --------- Sharding
+
+https://docs.mongodb.com/manual/sharding/
+
+Sharding is a technique for splitting up a large collection amongst multiple servers.
+Replica set keeps the data in sync across several different instances.
+
+##### Homework 4.1
+
+Suppose you have a collection with the following indexes:
+
+> db.products.getIndexes()
+[
+    {
+        "v" : 1,
+        "key" : {
+            "_id" : 1
+        },
+        "ns" : "store.products",
+        "name" : "_id_"
+    },
+    {
+        "v" : 1,
+        "key" : {
+            "sku" : 1
+        },
+                "unique" : true,
+        "ns" : "store.products",
+        "name" : "sku_1"
+    },
+    {
+        "v" : 1,
+        "key" : {
+            "price" : -1
+        },
+        "ns" : "store.products",
+        "name" : "price_-1"
+    },
+    {
+        "v" : 1,
+        "key" : {
+            "description" : 1
+        },
+        "ns" : "store.products",
+        "name" : "description_1"
+    },
+    {
+        "v" : 1,
+        "key" : {
+            "category" : 1,
+            "brand" : 1
+        },
+        "ns" : "store.products",
+        "name" : "category_1_brand_1"
+    },
+    {
+        "v" : 1,
+        "key" : {
+            "reviews.author" : 1
+        },
+        "ns" : "store.products",
+        "name" : "reviews.author_1"
+    }
+]
+
+Which of the following queries can utilize at least one index to find all matching documents, or to sort? Check all that apply.
+
+Note: the text for some answers may wrap; you can ignore the wrapping.
+
+A. db.products.find( { 'brand' : "GE" } ).sort( { price : 1 } )
+A. db.products.find( { $and : [ { price : { $gt : 30 } }, { price : { $lt : 50 } } ] } ).sort( { brand : 1 } )
+
+##### Homework 4.2
+
+Suppose you have a collection called tweets whose documents contain information about the created_at time of the tweet and the user's followers_count at the time they issued the tweet. What can you infer from the following explain output?
+
+> db.tweets.explain("executionStats").find( { "user.followers_count" : { $gt : 1000 } } ).limit(10).skip(5000).sort( { created_at : 1 } )
+{
+    "queryPlanner" : {
+        "plannerVersion" : 1,
+        "namespace" : "twitter.tweets",
+        "indexFilterSet" : false,
+        "parsedQuery" : {
+            "user.followers_count" : {
+                "$gt" : 1000
+            }
+        },
+        "winningPlan" : {
+            "stage" : "LIMIT",
+            "limitAmount" : 0,
+            "inputStage" : {
+                "stage" : "SKIP",
+                "skipAmount" : 0,
+                "inputStage" : {
+                    "stage" : "FETCH",
+                    "filter" : {
+                        "user.followers_count" : {
+                            "$gt" : 1000
+                        }
+                    },
+                    "inputStage" : {
+                        "stage" : "IXSCAN",
+                        "keyPattern" : {
+                            "created_at" : -1
+                        },
+                        "indexName" : "created_at_-1",
+                        "isMultiKey" : false,
+                        "direction" : "backward",
+                        "indexBounds" : {
+                            "created_at" : [
+                                "[MinKey, MaxKey]"
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "rejectedPlans" : [ ]
+    },
+    "executionStats" : {
+        "executionSuccess" : true,
+        "nReturned" : 10,
+        "executionTimeMillis" : 563,
+        "totalKeysExamined" : 251120,
+        "totalDocsExamined" : 251120,
+        "executionStages" : {
+            "stage" : "LIMIT",
+            "nReturned" : 10,
+            "executionTimeMillisEstimate" : 500,
+            "works" : 251121,
+            "advanced" : 10,
+            "needTime" : 251110,
+            "needFetch" : 0,
+            "saveState" : 1961,
+            "restoreState" : 1961,
+            "isEOF" : 1,
+            "invalidates" : 0,
+            "limitAmount" : 0,
+            "inputStage" : {
+                "stage" : "SKIP",
+                "nReturned" : 10,
+                "executionTimeMillisEstimate" : 500,
+                "works" : 251120,
+                "advanced" : 10,
+                "needTime" : 251110,
+                "needFetch" : 0,
+                "saveState" : 1961,
+                "restoreState" : 1961,
+                "isEOF" : 0,
+                "invalidates" : 0,
+                "skipAmount" : 0,
+                "inputStage" : {
+                    "stage" : "FETCH",
+                    "filter" : {
+                        "user.followers_count" : {
+                            "$gt" : 1000
+                        }
+                    },
+                    "nReturned" : 5010,
+                    "executionTimeMillisEstimate" : 490,
+                    "works" : 251120,
+                    "advanced" : 5010,
+                    "needTime" : 246110,
+                    "needFetch" : 0,
+                    "saveState" : 1961,
+                    "restoreState" : 1961,
+                    "isEOF" : 0,
+                    "invalidates" : 0,
+                    "docsExamined" : 251120,
+                    "alreadyHasObj" : 0,
+                    "inputStage" : {
+                        "stage" : "IXSCAN",
+                        "nReturned" : 251120,
+                        "executionTimeMillisEstimate" : 100,
+                        "works" : 251120,
+                        "advanced" : 251120,
+                        "needTime" : 0,
+                        "needFetch" : 0,
+                        "saveState" : 1961,
+                        "restoreState" : 1961,
+                        "isEOF" : 0,
+                        "invalidates" : 0,
+                        "keyPattern" : {
+                            "created_at" : -1
+                        },
+                        "indexName" : "created_at_-1",
+                        "isMultiKey" : false,
+                        "direction" : "backward",
+                        "indexBounds" : {
+                            "created_at" : [
+                                "[MinKey, MaxKey]"
+                            ]
+                        },
+                        "keysExamined" : 251120,
+                        "dupsTested" : 0,
+                        "dupsDropped" : 0,
+                        "seenInvalidated" : 0,
+                        "matchTested" : 0
+                    }
+                }
+            }
+        }
+    },
+    "serverInfo" : {
+        "host" : "generic-name.local",
+        "port" : 27017,
+        "version" : "3.0.1",
+        "gitVersion" : "534b5a3f9d10f00cd27737fbcd951032248b5952"
+    },
+    "ok" : 1
+}
+
+A. The query uses an index to determine the order in which to return result documents.
+A. The query examines 251120 documents.
+
+##### Homework 4.3
+
+> use blog;
+> db.posts.drop();
+// I have to broke it in three parts because of the maximum size of the file (16 MB)
+> mongoimport -d blog -c posts < posts0.json
+> mongoimport -d blog -c posts < posts1.json
+> mongoimport -d blog -c posts < posts2.json
+// Homepage
+> db.posts.createIndex({ 'date' : -1 })
+// Permalink page
+db.posts.createIndex({ 'permalink' : 1 })
+// Using unique is probably better and matches the blog rules
+db.posts.createIndex({ 'permalink' : 1 }, { 'unique' : true })
+// All the posts from a particular tag and order them by date
+db.posts.createIndex({ 'tags' : 1, 'date' : -1 })
+
+##### Homework 4.4
+
+> mongoimport --drop -d m101 -c sysprofile sysprofile.json
+
+Now query the profile data, looking for all queries to the students collection in the database school2, sorted in order of decreasing latency. What is the latency of the longest running operation to the collection, in milliseconds?
+
+> db.profile.find({ns: "school2.students" }, {_id: 0, millis: 1 } ).sort( { millis: -1 } ).limit(3)
+{ "millis" : 15820 }
+{ "millis" : 12560 }
+{ "millis" : 11084 }
+
+A. 15820
