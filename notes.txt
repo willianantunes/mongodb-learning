@@ -1873,4 +1873,325 @@ You will need to probably change your projection to send more info through than 
 		}
 	}
 ])
+
 A. 76394871
+
+########################################
+########## WEEK 6 - APPLICATION ENGINEERING
+#### TOPICS: Drivers, Impact Of Replication And Sharding On Design And Development.
+
+// --------- Write concern
+
+https://docs.mongodb.com/manual/reference/write-concern/
+
+Write concern describes the level of acknowledgement requested from MongoDB for write operations to a standalone mongod or to replica sets or to sharded clusters. In sharded clusters, mongos instances will pass the write concern on to the shards.
+
+1 - By default, W equals 1 and J equals false, it means that we're going to wait for that write to be acknowledged by the database, but we're not going to wait for the jornal to sync => This is FAST, but there is a small window of vunerability...
+2 - If we want to eliminate the "small window of vunerability", we can set w as 1 an J as true => This is SLOW, but secure.
+
+// -- Quiz
+
+Provided you assume that the disk is persistent, what are the w and j settings required to guarantee that an insert or update has been written all the way to disk?
+
+A. w=1, j=1
+
+// --------- Network Errors
+
+When a insert uses a custom _id, then it's impossible to get some problem about the consequences of network errors, but the main problem resides on update statements. $inc command is a way of workaround it.
+
+https://docs.mongodb.com/manual/reference/operator/update/inc/
+
+// -- Quiz
+
+What are the reasons why an application may receive an error back even if the write was successful. Check all that apply.
+
+A. The network TCP connection between the application and the server was reset after the server received a write but before a response could be sent.
+A. The MongoDB server terminates between receiving the write and responding to it.
+A. The network fails between the time of the write and the time the client receives a response to the write.
+
+// --------- Introduction to Replication
+
+https://docs.mongodb.com/manual/replication/
+
+We must be able to use the system even if something unlikely happens. Two objectives
+
+- Availability
+- Fault tolerance
+
+In order to get both above there is a thing called Replica Set. It is a set of Mongo nodes and all mirror each other in terms of the data. There is one primary and the other nodes are secondaries, but that's dynamic.
+
+Data that's written to the primary will asynchronously replicate to the secondaries.
+
+Your application stays connected to the primary, it can only write on it.
+
+- If the primary goes down, then the remaining nodes will perform an election to elect a new primary.
+- Your application will reconnect to the new primary.
+- If the fallen one returns, then it is allocated as secondary.
+- The minimum number of nodes is 3
+
+// -- Quiz
+
+What is the minimum original number of nodes needed to assure the election of a new Primary if a node goes down?
+
+A. 3
+
+// --------- Replica set elections
+
+Types of replica sets:
+
+1 - Regular: Can be primary os secondary
+2 - Arbiter: It's just there for voting purpose. So you can have two regular nodes and one arbiter to have a strict majority to vote a new leader (primary).
+3 - Delayed: It can be one, two hours behind the other nodes. It can participate in the voting too, but it cannot become a primary node. Priority set to 0.
+4 - Hidden: It's often used for analytics. It cannot become the primary node. Priority set to 0.
+
+// -- Quiz
+
+Which types of nodes can participate in elections of a new primary?
+
+A. Regular, hidden and arbiters.
+
+// --------- Write consistency
+
+Your writes always go to the primary but your reads don't have to go to the primary. The could go to the secondaries.
+
+As the writes/redas go to the primary, you get strong consistency of reads with respect to writes => You won't read stale data.
+If you go to the secondaries, you may get stale data.
+
+https://docs.mongodb.com/manual/core/read-isolation-consistency-recency/
+
+// -- Quiz
+
+During the time when failover is occurring, can writes successfully complete?
+
+A. NO
+
+// --------- Creating a replica set
+
+Even after the start of create_replica_set__m101p_52b35df6e2d423678d3b9d48.19830756d7a7.sh, it's needed to create a configuration because each instance of mongod does not know about each other, so you must tell them, they're basically independent. 
+
+mongod --replSet m101 --logpath "1.log" --dbpath /data/rs1 --port 27017 --oplogSize 64 --fork --smallfiles
+mongod --replSet m101 --logpath "2.log" --dbpath /data/rs2 --port 27018 --oplogSize 64 --smallfiles --fork
+mongod --replSet m101 --logpath "3.log" --dbpath /data/rs3 --port 27019 --oplogSize 64 --smallfiles --fork
+
+The following command in mongo shell will do the trick:
+
+config = { _id: "m101", members:[
+          { _id : 0, host : "localhost:27017", priority:0, slaveDelay: 5},
+          { _id : 1, host : "localhost:27018"},
+          { _id : 2, host : "localhost:27019"} ]
+};
+
+rs.initiate(config);
+rs.status();
+
+You important thing to notice is that you cannot use this command in a host which cannot become the primary node like localhost:27017.
+
+> mongo --port 27018 < init_replica.js
+> rs.status() // In order to see if it's everything configured or not
+> rs.slaveOk() // Informing that you're OK with reading from a secondary
+
+// -- Quiz
+
+Which command, when issued from the mongo shell, will allow you to read from a secondary?
+
+A. rs.slaveOk()
+
+// --------- Replica set internals
+
+https://www.mongodb.com/presentations/replication-internals-life-write-0
+https://github.com/mongodb/mongo/wiki/Replication-Internals
+https://docs.mongodb.com/manual/core/replica-set-oplog/
+
+The oplog (operations log) is a special capped collection that keeps a rolling record of all operations that modify the data stored in your databases. MongoDB applies database operations on the primary and then records the operations on the primary’s oplog. The secondary members then copy and apply these operations in an asynchronous process. All replica set members contain a copy of the oplog, in the local.oplog.rs collection, which allows them to maintain the current state of the database.
+
+> use local
+> show collections
+> db.oplog.rs.find() // Read from primary and secondaries nodes
+
+The oplog from secondary has the same statements (creation of collections and documents) as the primary.
+
+"optime" and "optimeDate" have the information to the secondary that he has everything up to date to this point.
+
+> ps -ef | mongod
+> kill <primary node PID>
+// Issue the command below from the new primary
+> rs.status()
+// -- Quiz
+
+Which of the following statements are true about replication. Check all that apply.
+
+A. Replication supports mixed-mode storage engines. For examples, a mmapv1 primary and wiredTiger secondary.
+A. A copy of the oplog is kept on both the primary and secondary servers.
+A. The oplog is implemented as a capped collection.
+
+// --------- Failover and rollback
+
+https://docs.mongodb.com/manual/core/replica-set-rollbacks/
+
+// -- Quiz
+
+What happens if a node comes back up as a secondary after a period of being offline and the oplog has looped on the primary?
+
+A. The entire dataset will be copied from the primary
+
+// --------- Connecting to a Replica Set from the Java Driver
+
+// -- Quiz
+
+If you leave a replica set node out of the seedlist within the driver, what will happen?
+
+A. The missing node will be discovered as long as you list at least one valid node.
+
+Obs: If that node happens to be one that's been taken down for maintenance, the discovery won't work.
+
+// --------- When Bad Things Happen to Good Nodes
+
+// When testing the replica set, you can shut down one node using the folling command:
+> rs.stepDown()
+
+// -- Quiz
+
+If you use the MongoClient constructor that takes a seed list of replica set members, are you guaranteed to avoid application exceptions during a primary failover?
+
+A. No.
+
+// --------- Write concern revisited
+
+Write concern (w) value can be set at client, database or collection level within PyMongo. When you call MongoClient, you get a connection to the driver, but behind the scenes, PyMongo connects to multiple nodes of the replica set. The w value can be set at the client level. Andrew says that the w concern can be set at the connection level; he really means client level. It's also important to note that wtimeout is the amount of time that the database will wait for replication before returning an error on the driver, but that even if the database returns an error due to wtimeout, the write will not be unwound at the primary and may complete at the secondaries. Hence, writes that return errors to the client due to wtimeout may in fact succeed, but writes that return success, do in fact succeed. Finally, the video shows the use of an insert command in PyMongo. That call is deprecated and it should have been insert_one.
+
+At minute 3:01, Andrew mentions that j:true does not wait for secondary node. That is not longer true. Using replication protocol V1, introduced in 3.2, j:true does wait for journal acknowledgement on secondaries
+
+https://docs.mongodb.com/manual/reference/write-concern/?_ga=2.191709802.1108080235.1499469715-1068873678.1493258930#j-option
+
+> rs.conf() // In order to see which one is running in a delayed state
+> rs.help()
+
+// -- Quiz
+
+If you set w=1 and j=1, is it possible to wind up rolling back a committed write to the primary on failover?
+
+A. No.
+
+// --------- Read preferences
+
+The newest version of the pymongo API docs can be found here:
+http://api.mongodb.com/python/current/api/pymongo/?_ga=2.150948598.1108080235.1499469715-1068873678.1493258930
+
+Read preference describes how MongoDB clients route read operations to the members of a replica set. By default, an application directs its read operations to the primary member in a replica set, but you can configure to read from the nearest node, which can be a secondary one.
+https://docs.mongodb.com/manual/core/read-preference/
+
+By default your writes and reads are going to go to you primary. And that's a good thing, because as a result, you're going to read what you wrote. Because with replication, it maybe the case that if you did a read to a secondary and had written it to the primary, if the write had not yet propagated to the seconday, you may not read what you wrote, which makes it harder to reason about your programs.
+
+Options available:
+
+- primary (Default mode): All operations read from the current replica set primary.
+- primaryPreferred: In most situations, operations read from the primary but if it is unavailable, operations read from secondary members.
+- secondary: All operations read from the secondary members of the replica set.
+- secondaryPreferred: In most situations, operations read from secondary members but if no secondary members are available, operations read from the primary.
+- nearest: Operations read from member of the replica set with the least network latency, irrespective of the member’s type.
+
+// -- Quiz
+
+You can configure your applications via the drivers to read from secondary nodes within a replica set. What are the reasons that you might not want to do that? Check all that apply.
+
+A. If your write traffic is great enough, and your secondary is less powerful than the primary, you may overwhelm the secondary, which must process all the writes as well as the reads. Replication lag can result.
+	- This is a design anti-pattern that we sometimes see.
+	- A similar anti-pattern occurs when reads are routed to the primary, but the secondary is underpowered and unable to handle the full read + write load. In this case, if the secondary becomes primary, it will be unable to fulfill its job.
+A. You may not read what you previously wrote to MongoDB on a secondary because it will lag behind by some amount.
+	- This is pretty straightforward. Unless you are reading from the primary, the secondary will not necessarily have the most current version of the documents you need to read.
+	- Whether this is a problem or not depends on your application's requirements and business concerns, so it goes a bit outside the scope of development.
+A. If the secondary hardware has insufficient memory to keep the read working set in memory, directing reads to it will likely slow it down.
+	- This could really go either way. If the secondary has excess capacity, beyond what it needs to take writes, then directing reads to it would cause it to work more, but perhaps it would still be able to keep up with the oplog. On the other hand, if the primary is taking writes faster than the secondary can keep up, then this scenario would definitely slow it down.
+	- Generally, your secondary should be on the same hardware as your primary, so if that's the case, and your primary would be able to keep up with the reads, then this shouldn't be a problem. Of course, if your primary can handle both the read and write loads, then there's really no compelling reason to send the reads to the secondary.
+
+// --------- Review implications of replication
+
+One thing to remember is that the driver will check, upon attempting to write, whether or not its write concern is valid. It will error if, for example, w=4 but there are 3 data-bearing replica set members. This will happen quickly in both the Java and pymongo drivers. Reading with an invalid readPreference will take longer, but will also result in an error. Be aware, though, that this behavior can vary a little between drivers and between versions.
+
+// -- Quiz
+
+If you set w=4 on a MongoClient and there are only three nodes in the replica set, how long will you wait in PyMongo for a response from an insert if you don't set a timeout?
+
+A. You will get an immediate error
+
+// --------- Introduction to sharding
+
+Sharding is Mongo's approach to horizontal scalability.
+
+At 2:55 I say that we use a range-based approach to distributing data across shards. That was right when this lecture was recorded but no longer. As of MongoDB 2.4, we also offer hash-based sharding, which offers a more even distribution of data as a function of shard key, at the expense of worse performance for range-based queries. For more information, see the documentation at http://docs.mongodb.org/manual/core/sharding-introduction/
+
+The shard_key is some part of the document itself.
+
+When it's set up, instead of connecting mongo shell to a replica set, you'll connect to a MongoS Router.
+
+// -- Quiz
+
+If the shard key is not included in a find operation and there are 4 shards, each one a replica set with 3 nodes, how many nodes will see the find operation?
+
+A. 4. Since the shard key is not included in the find operation, mongos has to send the query to all 4 of the shards. Each shard has 3 replica-set members, but only one member of each replica set (the primary, by default) is required to handle the find.
+
+
+// --------- Building a sharded environment
+
+https://docs.mongodb.com/manual/tutorial/deploy-shard-cluster/
+
+> mongo
+// The command below gives you the status of a sharded system.
+> sh.status()
+
+// -- Quiz
+
+If you want to build a production system with two shards, each one a replica set with three nodes, how may mongod processes must you start?
+
+A. 9 because 6 of them are going to come from the shards, there's two replica sets each one with three nodes and there's  three config servers that's what we recommend from production system.
+
+// --------- Implication of sharding on development
+
+- Every document needs to include the shard key
+- Shard key is immutable
+- You need an index that starts with the shard key
+- Shard key specified
+- When you do an update, you have to specify the shard key or specify that multi is true
+- Whatever you do a query that doesn't include the shard key, it's going to sent it across all the nodes
+- Document can't have an unique key, unless it's also part of the shard key
+
+// -- Quiz
+
+Suppose you wanted to shard the zip code collection after importing it. You want to shard on zip code. What index would be required to allow MongoDB to shard on zip code?
+
+A. An index on zip or a non-multi-key index that starts with zip code.
+
+// --------- Sharding + Replication
+
+Write concern is still applied even with sharding as it has replica set inside of it.
+
+// -- Quiz
+
+Suppose you want to run multiple mongos routers for redundancy. What level of the stack will assure that you can failover to a different mongos from within your application?
+
+A. Drivers.
+
+// --------- Choosing a shard key
+
+https://docs.mongodb.com/manual/core/sharding-shard-key/#choosing-a-shard-key
+http://techinsides.blogspot.com.br/2013/09/keynote-concerns-how-to-choose-mongodb.html
+
+1 - Sufficient cardinality: It means sufficient variety of values. Like you decide to shard a field where there's only three possible values, then would be no way for Mongo to spread it for exmaple across 100 shards.
+2 - The shard key should enable us to avoid "hot-spotting" of write operations. "Hot-spotting" of writes is said to occur when all writes, one after another start landing on the same shard.
+
+// -- Quiz
+
+You are building a facebook competitor called footbook that will be a mobile social network of feet. You have decided that your primary data structure for posts to the wall will look like this:
+
+{	
+	'username' : 'toeguy',
+	'posttime' : ISODate("2012-12-02T23:12:23Z"),
+	"randomthought" : "I am looking at my feet right now",
+	'visible_to' : ['friends','family', 'walkers']
+}
+	 
+Thinking about the tradeoffs of shard key selection, select the true statements below.
+
+A. Choosing posttime as the shard key  will cause hotspotting as time progresses.
+A. Choosing username as the shard key will distribute posts to the wall well across the shards.
+A. Choosing visible_to as a shard key is illegal.
