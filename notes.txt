@@ -3006,4 +3006,284 @@ What are the total number of images with the tag "sunrises" after the removal of
 > mongoimport -d exam -c albums < albums.json // 1.000 documents imported
 > mongoimport -d exam -c images < images.json // 100.000 documents imported
 
-A. 
+> db.images.findOne()
+
+{
+        "_id" : 1,
+        "height" : 480,
+        "width" : 640,
+        "tags" : [
+                "cats",
+                "sunrises",
+                "kittens",
+                "travel",
+                "vacation",
+                "work"
+        ]
+}
+
+> db.albums.findOne()
+
+{
+        "_id" : 0,
+        "images" : [
+                2433,
+                2753,
+                2983,
+                6510,
+                11375,
+                12974,
+                15344,
+                16952,
+                19722,
+                23077,
+                24772,
+                31401,
+                32579,
+                32939,
+                33434,
+                36328,
+                39247,
+                39892,
+                40597,
+                45675,
+                46147,
+                46225,
+                48406,
+                49947,
+                55361,
+                57420,
+                60101,
+                62423,
+                64640,
+                65000,
+                67203,
+                68064,
+                75918,
+                80196,
+                80642,
+                82848,
+                83837,
+                84460,
+                86419,
+                87089,
+                88595,
+                88904,
+                89308,
+                91989,
+                92411,
+                98135,
+                98548,
+                99334
+        ]
+}
+
+
+> db.albums.find({ "images" : { $elemMatch : { "$eq" : 64640 }}}) // Simple test case
+> db.images.find({ "tags" : { $elemMatch : { "$eq" : 'sunrises' }}}).count() // 49.887
+
+> db.images.createIndex({ tags: 1 });
+> db.albums.createIndex({ images : 1 });
+> db.images.getIndexes();
+> db.albums.getIndexes();
+	
+> var myImagesCursor = db.images.find();
+> myImagesCursor.forEach(function (myDoc){ 
+	if (db.albums.find({ "images" : { $elemMatch : { "$eq" : myDoc._id }}}).count() < 1)
+		db.images.remove({ "_id" : myDoc._id });
+});
+
+> db.images.find({ "tags" : { $elemMatch : { "$eq" : 'sunrises' }}}).count() // 44.787
+
+A. 44.787
+
+#### QUESTION 8
+
+Supposed we executed the following Java code. How many animals will be inserted into the "animals" collection?
+
+import com.mongodb.MongoClient;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import org.bson.Document;
+
+public class InsertTest {
+        public static void main(String[] args) {
+            MongoClient c =  new MongoClient();
+            MongoDatabase db = c.getDatabase("test");
+            MongoCollection<Document> animals = db.getCollection("animals");
+
+			Document animal = new Document("animal", "monkey");
+
+            animals.insertOne(animal);
+            animal.remove("animal");
+            animal.append("animal", "cat");
+            animals.insertOne(animal);
+            animal.remove("animal");
+            animal.append("animal", "lion");
+            animals.insertOne(animal);
+        }
+}
+
+A. 1 because _id stays the same, resulting in the following message: E11000 duplicate key error
+
+#### QUESTION 9
+
+Imagine an electronic medical record database designed to hold the medical records of every individual in the United States. Because each person has more than 16MB of medical history and records, it's not feasible to have a single document for every patient. Instead, there is a patient collection that contains basic information on each person and maps the person to a patient_id, and a record collection that contains one document for each test or procedure. One patient may have dozens or even hundreds of documents in the record collection.
+
+We need to decide on a shard key to shard the record collection. What's the best shard key for the record collection, provided that we are willing to run inefficient scatter-gather operations to do infrequent research and run studies on various diseases and cohorts? That is, think mostly about the operational aspects of such a system. And by operational, we mean, think about what the most common operations that this systems needs to perform day in and day out.
+
+// Patient collection basic information on each person -> patient_id
+// Record collection that contains one document for each test or procedure -> PATIENT collection MAY HAVE VARIOUS documents in RECORD collection
+
+1. patient_id
+2. _id
+3. Primary care physician (your principal doctor that handles everyday problems)
+4. Date and time when medical record was created
+5. Patient first name
+6. Patient last name
+
+A. patient_id as it distributes a lot better than the other options across the shards.
+
+#### QUESTION 10 (last one)
+
+--> Understanding the output of explain
+
+We perform the following query on the enron dataset:
+
+var exp = db.messages.explain('executionStats')
+exp.find( { 'headers.Date' : { '$gt' : new Date(2001,3,1) } }, { 'headers.From' : 1, '_id' : 0 } ).sort( { 'headers.From' : 1 } )
+
+And get the following explain output.
+
+{
+  "queryPlanner" : {
+    "plannerVersion" : 1,
+    "namespace" : "enron.messages",
+    "indexFilterSet" : false,
+    "parsedQuery" : {
+      "headers.Date" : {
+        "$gt" : ISODate("2001-04-01T05:00:00Z")
+      }
+    },
+    "winningPlan" : {
+      "stage" : "PROJECTION",
+      "transformBy" : {
+        "headers.From" : 1,
+        "_id" : 0
+      },
+      "inputStage" : {
+        "stage" : "FETCH",
+        "filter" : {
+          "headers.Date" : {
+            "$gt" : ISODate("2001-04-01T05:00:00Z")
+          }
+        },
+        "inputStage" : {
+          "stage" : "IXSCAN",
+          "keyPattern" : {
+            "headers.From" : 1
+          },
+          "indexName" : "headers.From_1",
+          "isMultiKey" : false,
+          "direction" : "forward",
+          "indexBounds" : {
+            "headers.From" : [
+              "[MinKey, MaxKey]"
+            ]
+          }
+        }
+      }
+    },
+    "rejectedPlans" : [ ]
+  },
+  "executionStats" : {
+    "executionSuccess" : true,
+    "nReturned" : 83057,
+    "executionTimeMillis" : 726,
+    "totalKeysExamined" : 120477,
+    "totalDocsExamined" : 120477,
+    "executionStages" : {
+      "stage" : "PROJECTION",
+      "nReturned" : 83057,
+      "executionTimeMillisEstimate" : 690,
+      "works" : 120478,
+      "advanced" : 83057,
+      "needTime" : 37420,
+      "needFetch" : 0,
+      "saveState" : 941,
+      "restoreState" : 941,
+      "isEOF" : 1,
+      "invalidates" : 0,
+      "transformBy" : {
+        "headers.From" : 1,
+        "_id" : 0
+      },
+      "inputStage" : {
+        "stage" : "FETCH",
+        "filter" : {
+          "headers.Date" : {
+            "$gt" : ISODate("2001-04-01T05:00:00Z")
+          }
+        },
+        "nReturned" : 83057,
+        "executionTimeMillisEstimate" : 350,
+        "works" : 120478,
+        "advanced" : 83057,
+        "needTime" : 37420,
+        "needFetch" : 0,
+        "saveState" : 941,
+        "restoreState" : 941,
+        "isEOF" : 1,
+        "invalidates" : 0,
+        "docsExamined" : 120477,
+        "alreadyHasObj" : 0,
+        "inputStage" : {
+          "stage" : "IXSCAN",
+          "nReturned" : 120477,
+          "executionTimeMillisEstimate" : 60,
+          "works" : 120477,
+          "advanced" : 120477,
+          "needTime" : 0,
+          "needFetch" : 0,
+          "saveState" : 941,
+          "restoreState" : 941,
+          "isEOF" : 1,
+          "invalidates" : 0,
+          "keyPattern" : {
+            "headers.From" : 1
+          },
+          "indexName" : "headers.From_1",
+          "isMultiKey" : false,
+          "direction" : "forward",
+          "indexBounds" : {
+            "headers.From" : [
+              "[MinKey, MaxKey]"
+            ]
+          },
+          "keysExamined" : 120477,
+          "dupsTested" : 0,
+          "dupsDropped" : 0,
+          "seenInvalidated" : 0,
+          "matchTested" : 0
+        }
+      }
+    }
+  },
+  "serverInfo" : {
+    "host" : "dpercy-mac-air.local",
+    "port" : 27017,
+    "version" : "3.0.1",
+    "gitVersion" : "534b5a3f9d10f00cd27737fbcd951032248b5952"
+  },
+  "ok" : 1
+}
+
+Check below all the statements that are true about the way MongoDB handled this query.
+
+1. The query used an index to figure out which documents match the find criteria.
+2. The query avoided sorting the documents because it was able to use an index's ordering.
+3. The query returned 120,477 documents.
+4. The query scanned every document in the collection.
+
+A. The query avoided sorting the documents because it was able to use an index's ordering.
+A. The query scanned every document in the collection.

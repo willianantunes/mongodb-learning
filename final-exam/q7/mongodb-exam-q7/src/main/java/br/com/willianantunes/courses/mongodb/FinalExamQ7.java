@@ -29,7 +29,8 @@ public class FinalExamQ7 {
 		setUpMyDatabase();
 		System.out.println("Collection ALBUMS current size: " + myAlbumsCollection.count());
 		System.out.println("Collection IMAGES current size: " + myImagesCollection.count());
-
+		
+		// I implemented using mongo shell and mongo cursor methods like forEach... Please see notes.txt.
 	}
 	
 	// In order to avoid 1000 limit as explained here: https://docs.mongodb.com/manual/reference/limits/#Write-Command-Operation-Limit-Size
